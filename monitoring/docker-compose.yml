@@ -1,0 +1,37 @@
+# Demo stack: Guardian (scans its own container) + Prometheus + Grafana.
+#   docker compose -f monitoring/docker-compose.yml up --build
+# Grafana: http://localhost:3000 (admin / admin, anonymous viewer enabled)
+# Prometheus: http://localhost:9090   Guardian panel: http://localhost:9877
+services:
+  fleetguard:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - ..:/app:ro
+      - guardian-state:/state
+    environment:
+      FLEETGUARD_STATE: /state
+      PYTHONPATH: /app
+      PYTHONDONTWRITEBYTECODE: "1"
+    command: ["python", "-m", "fleetguard", "serve", "--bind", "0.0.0.0", "--port", "9877",
+              "--token", "demo-token", "--scan-interval", "30"]
+    ports: ["127.0.0.1:9877:9877"]
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./fleetguard-alerts.yml:/etc/prometheus/fleetguard-alerts.yml:ro
+    ports: ["127.0.0.1:9090:9090"]
+    depends_on: [fleetguard]
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [prometheus]
+volumes:
+  guardian-state: {}

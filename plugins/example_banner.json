@@ -1,0 +1,11 @@
+[
+  {
+    "id": "CUS-001",
+    "title": "Login banner file mentions authorized use",
+    "severity": "low",
+    "file": "/etc/issue.net",
+    "regex": "[Aa]uthori[sz]ed",
+    "expect": "present",
+    "cis": "Warning Banners"
+  }
+]

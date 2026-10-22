@@ -1,0 +1,20 @@
+[Unit]
+Description=Linux Fleet Guardian (web panel, metrics and periodic scans)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/fleetguard/fleetguard.env
+Environment=FLEETGUARD_STATE=/var/lib/fleetguard
+ExecStart=/usr/bin/fleetguard serve -i /etc/fleetguard/inventory.ini --bind ${FLEETGUARD_BIND} --port ${FLEETGUARD_PORT} --scan-interval ${FLEETGUARD_SCAN_INTERVAL}
+StateDirectory=fleetguard
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/lib/fleetguard
+
+[Install]
+WantedBy=multi-user.target

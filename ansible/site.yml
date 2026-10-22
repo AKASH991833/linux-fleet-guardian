@@ -1,0 +1,6 @@
+---
+- name: Install Linux Fleet Guardian
+  hosts: all
+  become: true
+  roles:
+    - role: fleetguard

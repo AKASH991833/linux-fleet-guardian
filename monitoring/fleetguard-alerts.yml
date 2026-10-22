@@ -1,0 +1,50 @@
+groups:
+  - name: fleetguard
+    rules:
+      - alert: FleetGuardianHostUnreachable
+        expr: fleetguard_host_reachable == 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.host }} could not be scanned"
+          description: "The last Guardian scan could not reach {{ $labels.host }} (SSH down, key rejected or host off)."
+      - alert: FleetGuardianHighSeverityCheckFailing
+        expr: fleetguard_check_failing{severity="high"} == 1
+        for: 10m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.id }} failing on {{ $labels.host }}"
+          description: "A high severity hardening rule has been failing for 10 minutes. Run: fleetguard fix --limit {{ $labels.host }} --check {{ $labels.id }}"
+      - alert: FleetGuardianComplianceLow
+        expr: fleetguard_compliance_score < 80
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.host }} compliance score is {{ $value }}%"
+          description: "Share of applicable checks passing dropped under 80%."
+      - alert: FleetGuardianScanStale
+        expr: time() - fleetguard_last_scan_timestamp_seconds > 7200
+        labels: {severity: warning}
+        annotations:
+          summary: "No fresh scan for {{ $labels.host }}"
+          description: "The newest scan is more than two hours old; background scans may have stopped."
+      - alert: FleetGuardianLoadHigh
+        expr: fleetguard_perf{metric="load_per_cpu"} > 2
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.host }} load per CPU above 2"
+          description: "1-minute load average per CPU has stayed above 2 for 10 minutes."
+      - alert: FleetGuardianDiskAlmostFull
+        expr: fleetguard_perf{metric="disk_used_pct"} > 90
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.host }} root filesystem above 90%"
+          description: "Root filesystem usage is {{ $value }}%."
+      - alert: FleetGuardianDriftEvents
+        expr: increase(fleetguard_events_total{kind="drift"}[1h]) > 0
+        labels: {severity: info}
+        annotations:
+          summary: "Configuration drift events in the last hour"
+          description: "Open the incident timeline to see which checks changed."

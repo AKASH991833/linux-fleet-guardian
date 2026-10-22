@@ -1,0 +1,8 @@
+# Managed by Ansible (role fleetguard). Local changes will be overwritten.
+{% for h in fleetguard_inventory_hosts %}
+[{{ h.name }}]
+{% for k, v in h.items() if k != 'name' %}
+{{ k }} = {{ v | string | lower if v is boolean else v }}
+{% endfor %}
+
+{% endfor %}

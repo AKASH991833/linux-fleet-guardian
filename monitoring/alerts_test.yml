@@ -1,0 +1,30 @@
+rule_files:
+  - fleetguard-alerts.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'fleetguard_check_failing{host="web1",id="SSH-001",severity="high"}'
+        values: '1x20'
+      - series: 'fleetguard_host_reachable{host="web2"}'
+        values: '1 1 1 0x20'
+      - series: 'fleetguard_compliance_score{host="web1"}'
+        values: '95x40'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: FleetGuardianHighSeverityCheckFailing
+        exp_alerts:
+          - exp_labels: {severity: critical, host: web1, id: SSH-001}
+            exp_annotations:
+              summary: "SSH-001 failing on web1"
+              description: "A high severity hardening rule has been failing for 10 minutes. Run: fleetguard fix --limit web1 --check SSH-001"
+      - eval_time: 12m
+        alertname: FleetGuardianHostUnreachable
+        exp_alerts:
+          - exp_labels: {severity: critical, host: web2}
+            exp_annotations:
+              summary: "web2 could not be scanned"
+              description: "The last Guardian scan could not reach web2 (SSH down, key rejected or host off)."
+      - eval_time: 30m
+        alertname: FleetGuardianComplianceLow
+        exp_alerts: []

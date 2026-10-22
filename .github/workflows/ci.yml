@@ -1,0 +1,167 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.8", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -t . -v
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install -q pyflakes yamllint
+      - run: python3 -m pyflakes fleetguard tests plugins
+      - run: |
+          printf 'extends: relaxed\nrules:\n  line-length: disable\n' > /tmp/yl.yml
+          yamllint -c /tmp/yl.yml monitoring ansible .github
+      - run: shellcheck packaging/*.sh tests/*.sh
+
+  distros:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+      options: --user root
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:22.04
+          - ubuntu:24.04
+          - debian:12
+          - debian:trixie
+          - rockylinux:8
+          - rockylinux:9
+          - almalinux:9
+          - quay.io/centos/centos:stream9
+          - fedora:latest
+          - registry.access.redhat.com/ubi9/ubi
+    steps:
+      - name: Get sources
+        # actions/checkout needs git/node in the container; a tarball avoids both
+        run: |
+          if command -v apt-get >/dev/null; then apt-get update -qq && apt-get install -y -qq git ca-certificates >/dev/null
+          else (dnf install -y -q git || microdnf install -y git) >/dev/null; fi
+          git clone -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" src
+          cd src && git fetch -q --depth 1 origin "${GITHUB_SHA}" && git checkout -q "${GITHUB_SHA}"
+      - run: sh src/tests/ci_distro.sh
+
+  ssh-fleet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh tests/ci_ssh.sh
+
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build .deb
+        run: sh packaging/build-deb.sh dist
+      - name: Build .rpm (Rocky 9 container)
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src rockylinux:9 sh -c \
+            'dnf install -y -q rpm-build >/dev/null && sh packaging/build-rpm.sh dist'
+      - run: ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/*
+
+  package-install:
+    needs: packages
+    name: install on ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {image: "ubuntu:22.04", kind: deb}
+          - {image: "ubuntu:24.04", kind: deb}
+          - {image: "debian:12", kind: deb}
+          - {image: "debian:trixie", kind: deb}
+          - {image: "rockylinux:8", kind: rpm}
+          - {image: "rockylinux:9", kind: rpm}
+          - {image: "almalinux:9", kind: rpm}
+          - {image: "fedora:latest", kind: rpm}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: packages, path: dist}
+      - name: Install, run, remove
+        run: |
+          docker run --rm -v "$PWD/dist:/dist:ro" ${{ matrix.image }} sh -euc '
+            if [ "${{ matrix.kind }}" = deb ]; then
+              apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq /dist/*.deb >/dev/null
+            else
+              dnf install -y -q /dist/*.rpm >/dev/null
+            fi
+            fleetguard --version
+            fleetguard checks | head -3
+            FLEETGUARD_STATE=$(mktemp -d) fleetguard scan --format json > /tmp/s.json
+            python3 -c "import json;r=json.load(open(\"/tmp/s.json\"))[0];assert r[\"reachable\"] and not [x for x in r[\"results\"] if x[\"status\"]==\"ERROR\"]"
+            test -f /usr/lib/systemd/system/fleetguard.service -o -f /lib/systemd/system/fleetguard.service
+            test -f /etc/fleetguard/inventory.ini
+            if [ "${{ matrix.kind }}" = deb ]; then dpkg -r fleetguard >/dev/null; else dnf remove -y -q fleetguard >/dev/null; fi
+            ! command -v fleetguard
+            echo "install, run, remove ok"
+          '
+
+  ansible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo -E env "PATH=$PATH" sh tests/ci_ansible.sh
+
+  monitoring:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: promtool check and unit-test alert rules
+        run: |
+          docker run --rm -v "$PWD/monitoring:/m" --entrypoint promtool prom/prometheus:v2.55.1 check rules /m/fleetguard-alerts.yml
+          docker run --rm -v "$PWD/monitoring:/m" -w /m --entrypoint promtool prom/prometheus:v2.55.1 test rules alerts_test.yml
+      - name: Bring up Guardian + Prometheus + Grafana
+        run: docker compose -f monitoring/docker-compose.yml up -d
+      - name: Verify the stack end to end
+        run: |
+          for i in $(seq 1 40); do
+            up=$(curl -fs 'http://127.0.0.1:9090/api/v1/query?query=fleetguard_compliance_score' | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["data"]["result"]))' || echo 0)
+            [ "$up" -ge 1 ] && break; sleep 3
+          done
+          echo "prometheus series for fleetguard_compliance_score: $up"; [ "$up" -ge 1 ]
+          curl -fs 'http://127.0.0.1:9090/api/v1/rules' | grep -q FleetGuardianHostUnreachable
+          for i in $(seq 1 30); do
+            curl -fs -u admin:admin 'http://127.0.0.1:3000/api/dashboards/uid/fleetguard' | grep -q 'Linux Fleet Guardian' && break; sleep 2
+          done
+          curl -fs -u admin:admin 'http://127.0.0.1:3000/api/dashboards/uid/fleetguard' | grep -q 'Compliance score by host'
+          curl -fs -u admin:admin 'http://127.0.0.1:3000/api/datasources/uid/prometheus/health' | grep -qi ok
+          echo "stack verified"
+      - name: Screenshots (headless Chrome)
+        run: |
+          mkdir -p shots
+          sleep 20
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --virtual-time-budget=15000 --window-size=1500,1000 \
+            --screenshot="$PWD/shots/grafana.png" 'http://127.0.0.1:3000/d/fleetguard/linux-fleet-guardian?orgId=1&kiosk' || true
+          docker compose -f monitoring/docker-compose.yml logs --no-color > shots/compose.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monitoring-evidence
+          path: shots/*
+      - if: always()
+        run: docker compose -f monitoring/docker-compose.yml down -v

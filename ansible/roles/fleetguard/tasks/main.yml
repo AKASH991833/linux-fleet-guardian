@@ -1,0 +1,77 @@
+---
+- name: Ensure Python 3 is present
+  ansible.builtin.package:
+    name: python3
+    state: present
+
+- name: Install the fleetguard package
+  ansible.builtin.copy:
+    src: "{{ fleetguard_src }}"
+    dest: /usr/lib/fleetguard/fleetguard/
+    owner: root
+    group: root
+    mode: preserve
+  notify: restart fleetguard
+
+- name: Install the fleetguard command
+  ansible.builtin.copy:
+    dest: /usr/bin/fleetguard
+    owner: root
+    group: root
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      PYTHONPATH=/usr/lib/fleetguard exec python3 -m fleetguard "$@"
+
+- name: Create config directory
+  ansible.builtin.file:
+    path: /etc/fleetguard
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Write inventory
+  ansible.builtin.template:
+    src: inventory.ini.j2
+    dest: /etc/fleetguard/inventory.ini
+    owner: root
+    group: root
+    mode: "0640"
+  notify: restart fleetguard
+
+- name: Write environment file
+  ansible.builtin.template:
+    src: fleetguard.env.j2
+    dest: /etc/fleetguard/fleetguard.env
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart fleetguard
+
+- name: Refuse a non-loopback bind without a token
+  ansible.builtin.assert:
+    that: fleetguard_bind in ['127.0.0.1', '::1', 'localhost'] or fleetguard_token | length > 0
+    fail_msg: "Set fleetguard_token when fleetguard_bind is not loopback."
+
+- name: Install systemd unit
+  ansible.builtin.template:
+    src: fleetguard.service.j2
+    dest: /etc/systemd/system/fleetguard.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - reload systemd
+    - restart fleetguard
+  when: ansible_service_mgr == 'systemd'
+
+- name: Flush handlers so the unit is known before it is enabled
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the service
+  ansible.builtin.service:
+    name: fleetguard
+    enabled: "{{ fleetguard_service_enabled }}"
+    state: "{{ fleetguard_service_state }}"
+  when: ansible_service_mgr == 'systemd'

@@ -1,0 +1,11 @@
+---
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: ansible_service_mgr == 'systemd'
+
+- name: restart fleetguard
+  ansible.builtin.service:
+    name: fleetguard
+    state: restarted
+  when: ansible_service_mgr == 'systemd' and fleetguard_service_state == 'started'

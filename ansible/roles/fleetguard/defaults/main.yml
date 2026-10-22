@@ -1,0 +1,12 @@
+---
+# Where the fleetguard Python package comes from on the controller.
+fleetguard_src: "{{ role_path }}/../../../fleetguard/"
+fleetguard_bind: 127.0.0.1
+fleetguard_port: 9877
+fleetguard_scan_interval: 3600
+fleetguard_token: ""          # required if fleetguard_bind is not loopback
+fleetguard_service_enabled: true
+fleetguard_service_state: started
+fleetguard_inventory_hosts:
+  - name: localhost
+    local: true
