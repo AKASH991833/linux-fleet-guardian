@@ -87,7 +87,7 @@ CI (GitHub Actions) runs on every push. Results are in the Actions tab; the tabl
 | Unit tests pass (Python 3.8 and 3.12) | `unit` job. 46 tests. |
 | Works on Python 3.6 (RHEL 8) | `distros` job on `rockylinux:8`. |
 | Runs on Ubuntu 22.04/24.04, Debian 12/13, Rocky 8/9, Alma 9, CentOS Stream 9, Fedora, UBI 9 | `distros` job: unit tests, a live scan with no ERROR results, backup restore-test, DR drill. |
-| Fixes really work and roll back | Same job: on each real container, `fix --apply` edits the real `/etc/ssh/sshd_config`, the real `sshd -t` accepts it, rollback is byte-identical (`cmp`). |
+| Fixes really work and roll back | Same job: on each real container, `fix --apply` edits the real `/etc/ssh/sshd_config`, the real `sshd -t` accepts it, rollback is byte-identical (sha256 comparison). |
 | SSH fleet scanning, sudo, unreachable host detection, fix/rollback over SSH | `ssh-fleet` job against a real sshd on the runner (loopback; "different hosts" are aliases of one machine). |
 | `.deb` and `.rpm` install, run and remove cleanly | `packages` + `package-install` jobs on 8 distros. |
 | Ansible role converges, second run changes nothing, service answers | `ansible` job (Ubuntu runner with systemd). |

@@ -53,7 +53,7 @@ sshd -t -f "$cfg"                                # real sshd accepts the result
 python3 -m fleetguard scan --check SSH-001 | grep -q 'score 100.0'
 jid=$(python3 -m fleetguard rollback --list | awk '{print $1}' | tail -1)
 python3 -m fleetguard rollback "$jid"
-cmp "$cfg" /tmp/sshd_config.orig                  # byte-identical after rollback
+[ "$(sha256sum < "$cfg")" = "$(sha256sum < /tmp/sshd_config.orig)" ]   # byte-identical after rollback
 echo "fix + rollback verified on real sshd_config"
 
 echo "== backup restore-test and DR drill"
