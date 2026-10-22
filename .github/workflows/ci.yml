@@ -61,7 +61,7 @@ jobs:
           cd src && git fetch -q --depth 1 origin "${GITHUB_SHA}" && git checkout -q "${GITHUB_SHA}"
       - name: Run distro checks
         run: |
-          sh -x src/tests/ci_distro.sh > /tmp/distro.log 2>&1 || { tail -n 40 /tmp/distro.log | sed 's/^/::error::/'; exit 1; }
+          sh -x src/tests/ci_distro.sh > /tmp/distro.log 2>&1 || { tail -n 9 /tmp/distro.log | sed 's/^/::error::/'; exit 1; }
           tail -n 12 /tmp/distro.log
 
   ssh-fleet:
