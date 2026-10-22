@@ -14,7 +14,7 @@ jobs:
       - run: sh packaging/build-deb.sh dist
       - run: |
           docker run --rm -v "$PWD:/src" -w /src rockylinux:9 sh -c \
-            'dnf install -y -q rpm-build >/dev/null && sh packaging/build-rpm.sh dist'
+            'dnf install -y -q rpm-build systemd-rpm-macros >/dev/null && sh packaging/build-rpm.sh dist'
       - name: Source tarball and checksums
         run: |
           git archive --format=tar.gz --prefix=linux-fleet-guardian-${GITHUB_REF_NAME#v}/ -o dist/linux-fleet-guardian-${GITHUB_REF_NAME#v}.tar.gz HEAD

@@ -6,6 +6,7 @@ License:        MIT
 URL:            https://github.com/AKASH991833/linux-fleet-guardian
 BuildArch:      noarch
 Requires:       python3
+BuildRequires:  systemd-rpm-macros
 Source0:        %{name}-%{version}.tar.gz
 
 %description

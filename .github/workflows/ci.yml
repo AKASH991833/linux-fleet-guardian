@@ -79,7 +79,7 @@ jobs:
       - name: Build .rpm (Rocky 9 container)
         run: |
           docker run --rm -v "$PWD:/src" -w /src rockylinux:9 sh -c \
-            'dnf install -y -q rpm-build >/dev/null && sh packaging/build-rpm.sh dist'
+            'dnf install -y -q rpm-build systemd-rpm-macros >/dev/null && sh packaging/build-rpm.sh dist'
       - run: ls -l dist
       - uses: actions/upload-artifact@v4
         with:
