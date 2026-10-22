@@ -102,6 +102,8 @@ What is **not** claimed:
 - Not tested on non-systemd init systems or on non-Linux hosts.
 - The web panel has no login screen; use the bearer token and a TLS reverse proxy if you expose it.
 
+*No Grafana screenshot is included: the monitoring job captures one as a CI artifact, but it was not reviewed or committed. Run the compose demo to see the dashboard.*
+
 ## Learn how it works
 
 [LEARN.md](LEARN.md) walks through the ideas (idempotent fixes, drift, restore tests, RTO/RPO, robust statistics) with small exercises. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) maps the code. [docs/CHECKS.md](docs/CHECKS.md) lists every rule.
