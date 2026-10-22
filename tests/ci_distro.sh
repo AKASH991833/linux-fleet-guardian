@@ -22,7 +22,8 @@ echo "== unit tests"
 python3 -m unittest discover -s tests -t . 2>&1 | tail -4
 
 echo "== live scan"
-export FLEETGUARD_STATE=$(mktemp -d)
+FLEETGUARD_STATE=$(mktemp -d)
+export FLEETGUARD_STATE
 python3 -m fleetguard scan --format json -o /tmp/scan.json >/dev/null
 python3 - <<'PY'
 import json

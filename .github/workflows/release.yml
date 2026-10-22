@@ -1,0 +1,29 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh packaging/build-deb.sh dist
+      - run: |
+          docker run --rm -v "$PWD:/src" -w /src rockylinux:9 sh -c \
+            'dnf install -y -q rpm-build >/dev/null && sh packaging/build-rpm.sh dist'
+      - name: Source tarball and checksums
+        run: |
+          git archive --format=tar.gz --prefix=linux-fleet-guardian-${GITHUB_REF_NAME#v}/ -o dist/linux-fleet-guardian-${GITHUB_REF_NAME#v}.tar.gz HEAD
+          cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: dist/*
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file CHANGELOG.md

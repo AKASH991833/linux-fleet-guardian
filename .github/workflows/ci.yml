@@ -59,7 +59,10 @@ jobs:
           else (dnf install -y -q git || microdnf install -y git) >/dev/null; fi
           git clone -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" src
           cd src && git fetch -q --depth 1 origin "${GITHUB_SHA}" && git checkout -q "${GITHUB_SHA}"
-      - run: sh src/tests/ci_distro.sh
+      - name: Run distro checks
+        run: |
+          sh src/tests/ci_distro.sh > /tmp/distro.log 2>&1 || { tail -n 40 /tmp/distro.log | sed 's/^/::error::/'; exit 1; }
+          tail -n 12 /tmp/distro.log
 
   ssh-fleet:
     runs-on: ubuntu-latest

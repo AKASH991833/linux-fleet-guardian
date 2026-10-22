@@ -25,7 +25,8 @@ address = 127.0.0.1
 address = 127.0.0.1
 port = 1
 INI
-export FLEETGUARD_STATE=$(mktemp -d)
+FLEETGUARD_STATE=$(mktemp -d)
+export FLEETGUARD_STATE
 set +e
 python3 -m fleetguard scan -i "$INV" --format json -o /tmp/fleet.json
 rc=$?
